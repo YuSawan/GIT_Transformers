@@ -3,8 +3,8 @@
 import json
 import logging
 import pickle
-from pytorch_pretrained_bert import BertTokenizer
 
+from transformers import BertTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +37,27 @@ def set_basic_log_config():
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.INFO)
 
-class BERTChineseCharacterTokenizer(BertTokenizer):
-    """Customized tokenizer for Chinese financial announcements"""
+# class BERTChineseCharacterTokenizer(BertTokenizer):
+#     """Customized tokenizer for Chinese financial announcements"""
 
-    def __init__(self, vocab_file, do_lower_case=True):
-        super(BERTChineseCharacterTokenizer, self).__init__(vocab_file, do_lower_case)
+#     def __init__(self, vocab_file, do_lower_case=True):
+#         super(BERTChineseCharacterTokenizer, self).__init__(vocab_file, do_lower_case)
 
-    def char_tokenize(self, text, unk_token='[UNK]'):
+#     def char_tokenize(self, text, unk_token='[UNK]'):
+#         """perform pure character-based tokenization"""
+#         tokens = list(text)
+#         out_tokens = []
+#         for token in tokens:
+#             if token in self.vocab:
+#                 out_tokens.append(token)
+#             else:
+#                 out_tokens.append(unk_token)
+
+#         return out_tokens
+
+
+class BERTCharacterTokenizer(BertTokenizer):
+    def char_tokenize(self, text: str, unk_token: str = '[UNK]') -> list[str]:
         """perform pure character-based tokenization"""
         tokens = list(text)
         out_tokens = []
@@ -54,6 +68,7 @@ class BERTChineseCharacterTokenizer(BertTokenizer):
                 out_tokens.append(unk_token)
 
         return out_tokens
+
 
 def recursive_print_grad_fn(grad_fn, prefix='', depth=0, max_depth=50):
     if depth > max_depth:

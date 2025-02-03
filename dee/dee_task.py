@@ -2,18 +2,26 @@
 
 import logging
 import os
-import torch.optim as optim
-import torch.distributed as dist
 from itertools import product
 
-from .dee_helper import logger, DEEExample, DEEExampleLoader, DEEFeatureConverter, \
-    convert_dee_features_to_dataset, prepare_doc_batch_dict, measure_dee_prediction, \
-    decode_dump_template, eval_dump_template
-from .utils import BERTChineseCharacterTokenizer, default_dump_json, default_load_pkl
-from .ner_model import BertForBasicNER
-from .base_task import TaskSetting, BasePytorchTask
-from .event_type import event_type_fields_list
+import torch.distributed as dist
+import torch.optim as optim
+
+from .base_task import BasePytorchTask, TaskSetting
+from .dee_helper import (
+    DEEExample,
+    DEEExampleLoader,
+    DEEFeatureConverter,
+    convert_dee_features_to_dataset,
+    decode_dump_template,
+    eval_dump_template,
+    logger,
+    measure_dee_prediction,
+    prepare_doc_batch_dict,
+)
 from .dee_model import GITModel
+from .event_type import event_type_fields_list
+from .utils import BERTCharacterTokenizer, default_dump_json, default_load_pkl
 
 
 class DEETaskSetting(TaskSetting):
@@ -75,7 +83,7 @@ class DEETask(BasePytorchTask):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logging('Initializing {}'.format(self.__class__.__name__))
 
-        self.tokenizer = BERTChineseCharacterTokenizer.from_pretrained(self.setting.bert_model)
+        self.tokenizer = BERTCharacterTokenizer.from_pretrained(self.setting.bert_model)
         self.setting.vocab_size = len(self.tokenizer.vocab)
 
         # get entity and event label name
@@ -195,7 +203,7 @@ class DEETask(BasePytorchTask):
             loss = self.model(
                 doc_batch_dict, features, use_gold_span=use_gold_span, train_flag=True, teacher_prob=teacher_prob
             )
-        except Exception as e:
+        except Exception:
             print('-'*30)
             print('Exception occurs when processing ' +
                   ','.join([features[ex_idx].guid for ex_idx in doc_batch_dict['ex_idx']]))
@@ -299,7 +307,7 @@ class DEETask(BasePytorchTask):
                 try:
                     epoch = int(fn.split('.')[-1])
                     prev_epochs.append(epoch)
-                except Exception as e:
+                except Exception:
                     continue
         prev_epochs.sort()
 

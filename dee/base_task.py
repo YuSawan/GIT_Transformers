@@ -1,22 +1,23 @@
 # Code Reference: (https://github.com/dolphin-zs/Doc2EDAG)
 
-import logging
-import random
-import os
 import json
+import logging
+import os
+import random
 import sys
-import numpy as np
 from datetime import datetime
+
+import numpy as np
 import torch
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from torch.utils.data.distributed import DistributedSampler
 import torch.distributed as dist
 import torch.nn.parallel as para
-from pytorch_pretrained_bert.optimization import BertAdam
-from tqdm import trange, tqdm
 from tensorboardX import SummaryWriter
+from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data.distributed import DistributedSampler
+from tqdm import tqdm, trange
+from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 
-from .utils import default_dump_pkl, default_dump_json
+from .utils import default_dump_json, default_dump_pkl
 
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
@@ -153,6 +154,7 @@ class BasePytorchTask(object):
         # self._decorate_model()
 
         self.optimizer = None
+        self.scheduler = None
         self.num_train_steps = None
         self.model_named_parameters = None
         # self._init_bert_optimizer()
@@ -353,7 +355,7 @@ class BasePytorchTask(object):
 
     def _init_bert_optimizer(self):
         self.logging('='*20 + 'Init Bert Optimizer' + '='*20)
-        self.optimizer, self.num_train_steps, self.model_named_parameters = \
+        self.optimizer, self.scheduler, self.num_train_steps, self.model_named_parameters = \
             self.reset_bert_optimizer()
 
     def reset_bert_optimizer(self):
@@ -384,12 +386,14 @@ class BasePytorchTask(object):
                               / self.setting.gradient_accumulation_steps
                               * self.setting.num_train_epochs)
 
-        optimizer = BertAdam(optimizer_grouped_parameters,
-                             lr=self.setting.learning_rate,
-                             warmup=self.setting.warmup_proportion,
-                             t_total=num_train_steps)
+        optimizer = AdamW(optimizer_grouped_parameters,
+                          lr=self.setting.learning_rate,
+                          correct_bias=False)
+        scheduler = get_linear_schedule_with_warmup(optimizer,
+                                                    num_warmup_steps=int(self.num_train_steps * self.setting.warmup_proportion),
+                                                    num_training_steps=num_train_steps)
 
-        return optimizer, num_train_steps, model_named_parameters
+        return optimizer, scheduler, num_train_steps, model_named_parameters
 
     def prepare_data_loader(self, dataset, batch_size, rand_flag=True):
         # prepare data loader
@@ -552,11 +556,15 @@ class BasePytorchTask(object):
                             self.setting.loss_scale = self.setting.loss_scale / 2
                             self.model.zero_grad()
                             continue
+                        if self.scheduler:
+                            self.scheduler.step()
                         self.optimizer.step()
                         copy_optimizer_params_to_model(
                             self.model.named_parameters(), self.model_named_parameters
                         )
                     else:
+                        if self.scheduler:
+                            self.scheduler.step()
                         self.optimizer.step()
 
                     self.model.zero_grad()
